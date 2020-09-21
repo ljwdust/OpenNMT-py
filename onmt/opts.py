@@ -59,6 +59,15 @@ def model_opts(parser):
                    "embedding sizes will be set to N^feat_vec_exponent "
                    "where N is the number of values the feature takes.")
 
+    # STN Options
+    group = parser.add_argument_group('Model-STN')
+    group.add('--use_stn', '-use_stn', action='store_true')
+    group.add('--tps_inputsize', '-tps_inputsize', type=int, default=[32,64])
+    group.add('--tps_outputsize', '-tps_outputsize', type=int, default=[32,100])
+    group.add('--num_control_points', '-num_control_points', type=int, default=20)
+    group.add('--tps_margins', '-tps_margins', type=float, default=[0.05,0.05])
+    group.add('--stn_activation', '-stn_activation', type=str, default='none')
+
     # Encoder-Decoder Options
     group = parser.add_argument_group('Model- Encoder-Decoder')
     group.add('--model_type', '-model_type', default='text',

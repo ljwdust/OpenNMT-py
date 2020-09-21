@@ -1,5 +1,6 @@
 """ Onmt NMT Model base class definition """
 import torch.nn as nn
+from torch.nn import functional as F
 
 
 class NMTModel(nn.Module):
@@ -12,10 +13,14 @@ class NMTModel(nn.Module):
       decoder (onmt.decoders.DecoderBase): a decoder object
     """
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, rectifier=None, tps_inputsize=[32,64]):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        self.rectifier = rectifier
+        if rectifier is not None:
+            self.model_tps, self.model_stn_head = rectifier
+        self.tps_inputsize = tps_inputsize
 
     def forward(self, src, tgt, lengths, bptt=False, with_align=False):
         """Forward propagate a `src` and `tgt` pair for training.
@@ -41,6 +46,12 @@ class NMTModel(nn.Module):
             * dictionary attention dists of ``(tgt_len, batch, src_len)``
         """
         dec_in = tgt[:-1]  # exclude last target from inputs
+
+        if self.rectifier is not None:
+            # input images are downsampled before being fed into stn_head.
+            stn_input = F.interpolate(src, self.tps_inputsize, mode='bilinear', align_corners=True)
+            stn_img_feat, ctrl_points = self.model_stn_head(stn_input)
+            src, _ = self.model_tps(src, ctrl_points)
 
         enc_state, memory_bank, lengths = self.encoder(src, lengths)
 

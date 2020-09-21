@@ -19,6 +19,8 @@ from onmt.utils.misc import use_gpu
 from onmt.utils.logging import logger
 from onmt.utils.parse import ArgumentParser
 
+from onmt.encoders.tps_spatial_transformer import TPSSpatialTransformer
+from onmt.encoders.stn_head import STNHead
 
 def build_embeddings(opt, text_field, for_encoder=True):
     """
@@ -138,6 +140,20 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
     except AttributeError:
         model_opt.attention_dropout = model_opt.dropout
 
+    # Build TPS_STN
+    if model_opt.use_stn:
+        model_tps = TPSSpatialTransformer(
+            output_image_size=tuple(model_opt.tps_outputsize),
+            num_control_points=model_opt.num_control_points,
+            margins=tuple(model_opt.tps_margins))
+        model_stn_head = STNHead(
+            in_planes=1, #TODO: set as a option
+            num_ctrlpoints=model_opt.num_control_points,
+            activation=model_opt.stn_activation)
+        rectifier = [model_tps, model_stn_head]
+    else:
+        rectifier = None
+
     # Build embeddings.
     if model_opt.model_type == "text" or model_opt.model_type == "vec":
         src_field = fields["src"]
@@ -169,7 +185,7 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
         device = torch.device("cuda")
     elif not gpu:
         device = torch.device("cpu")
-    model = onmt.models.NMTModel(encoder, decoder)
+    model = onmt.models.NMTModel(encoder, decoder, rectifier, model_opt.tps_inputsize)
 
     # Build Generator.
     if not model_opt.copy_attn:
