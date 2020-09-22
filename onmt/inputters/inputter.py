@@ -3,6 +3,8 @@ import glob
 import os
 import codecs
 import math
+import cv2
+import numpy as np
 
 from collections import Counter, defaultdict
 from itertools import chain, cycle
@@ -833,11 +835,65 @@ class DatasetLazyIter(object):
         self.yield_raw_example = yield_raw_example
         self.pool_factor = pool_factor
 
+    def perspect_deform(self, img):
+        # TODO: implement the function
+        # 1.padding margin
+        # img = cv2.resize(img, (144,36), interpolation=cv2.INTER_CUBIC)
+        img = img.numpy().transpose(1, 2, 0)
+        h,w = img.shape[0:2]
+        padW = math.ceil(w/6)
+        padH = math.ceil(h/6)
+        img = np.pad(img, ((padH,padH),(padW,padW),(0,0)), 
+                       'constant', constant_values=((255,255),(255,255),(255,255)))
+
+        # 2.get control points, counter-clockwise from upper left
+        h,w = img.shape[0:2]
+        p1x, p2x, p3x, p4x = np.random.randint(-padW, padW+1, 4)
+        p1y, p2y, p3y, p4y = np.random.randint(-padH, padH+1, 4)
+
+        ptsMove = np.float32([ [p1x, p1y], 
+                               [p2x, p2y], 
+                               [p3x, p3y], 
+                               [p4x, p4y]
+                            ])
+        ptsGT = np.float32([ [padW, padH], 
+                              [padW, h-1-padH], 
+                              [w-1-padW, h-1-padH], 
+                              [w-1-padW, padH] 
+                            ])
+        ptsIn = ptsGT + ptsMove
+
+        # 3.perspective transform
+        M = cv2.getPerspectiveTransform(ptsGT, ptsIn)
+        imgIn = cv2.warpPerspective(img, M, img.shape[1::-1], 
+                                    flags=cv2.INTER_AREA,
+                                    borderMode=cv2.BORDER_CONSTANT, 
+                                    borderValue=255)
+        
+        # 4.rotation
+        h,w = img.shape[0:2]
+        angle = (np.random.random() - 0.5) * 12
+        matRotate = cv2.getRotationMatrix2D((w/2, h/2), angle, 1)
+        imgIn = cv2.warpAffine(imgIn, matRotate, (w,h), 
+                               flags=cv2.INTER_AREA, 
+                               borderMode=cv2.BORDER_CONSTANT, 
+                               borderValue=255)
+        # ptsIn2 = ptsIn.copy()
+        # for i in range(len(ptsIn)):
+        #     ptsIn2[i] = self.rotatePoint(ptsIn[i][0], ptsIn[i][1], w/2, h/2, angle, h)
+        if imgIn.ndim == 2:
+            imgIn = imgIn[:, :, np.newaxis]
+        imgIn = torch.from_numpy(imgIn.transpose(2, 0, 1)).float()
+        return imgIn
+
     def _iter_dataset(self, path):
         logger.info('Loading dataset from %s' % path)
         cur_dataset = torch.load(path)
         logger.info('number of examples: %d' % len(cur_dataset))
         cur_dataset.fields = self.fields
+        # The perspective deformation
+        for curdata in cur_dataset:
+            curdata.src = self.perspect_deform(curdata.src)
         cur_iter = OrderedIterator(
             dataset=cur_dataset,
             batch_size=self.batch_size,
