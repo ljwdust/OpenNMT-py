@@ -822,7 +822,7 @@ class DatasetLazyIter(object):
 
     def __init__(self, dataset_paths, fields, batch_size, batch_size_fn,
                  batch_size_multiple, device, is_train, pool_factor,
-                 repeat=True, num_batches_multiple=1, yield_raw_example=False):
+                 repeat=True, num_batches_multiple=1, yield_raw_example=False, use_stn=False):
         self._paths = dataset_paths
         self.fields = fields
         self.batch_size = batch_size
@@ -834,12 +834,15 @@ class DatasetLazyIter(object):
         self.num_batches_multiple = num_batches_multiple
         self.yield_raw_example = yield_raw_example
         self.pool_factor = pool_factor
+        self.use_stn = use_stn
 
     def perspect_deform(self, img):
         # TODO: implement the function
         # 1.padding margin
         # img = cv2.resize(img, (144,36), interpolation=cv2.INTER_CUBIC)
         img = img.numpy().transpose(1, 2, 0)
+        img = img * 255
+        img = img.round().astype(np.uint8)
         h,w = img.shape[0:2]
         padW = math.ceil(w/6)
         padH = math.ceil(h/6)
@@ -883,7 +886,7 @@ class DatasetLazyIter(object):
         #     ptsIn2[i] = self.rotatePoint(ptsIn[i][0], ptsIn[i][1], w/2, h/2, angle, h)
         if imgIn.ndim == 2:
             imgIn = imgIn[:, :, np.newaxis]
-        imgIn = torch.from_numpy(imgIn.transpose(2, 0, 1)).float()
+        imgIn = torch.from_numpy(imgIn.transpose(2, 0, 1)).float() / 255
         return imgIn
 
     def _iter_dataset(self, path):
@@ -892,8 +895,9 @@ class DatasetLazyIter(object):
         logger.info('number of examples: %d' % len(cur_dataset))
         cur_dataset.fields = self.fields
         # The perspective deformation
-        for curdata in cur_dataset:
-            curdata.src = self.perspect_deform(curdata.src)
+        if self.use_stn:
+            for curdata in cur_dataset:
+                curdata.src = self.perspect_deform(curdata.src)
         cur_iter = OrderedIterator(
             dataset=cur_dataset,
             batch_size=self.batch_size,
@@ -1002,7 +1006,8 @@ def build_dataset_iter(corpus_type, fields, opt, is_train=True, multi=False):
         opt.pool_factor,
         repeat=not opt.single_pass,
         num_batches_multiple=max(opt.accum_count) * opt.world_size,
-        yield_raw_example=multi)
+        yield_raw_example=multi,
+        use_stn=opt.use_stn)
 
 
 def build_dataset_iter_multiple(train_shards, fields, opt):
