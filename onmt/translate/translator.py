@@ -8,6 +8,7 @@ import numpy as np
 from itertools import count, zip_longest
 
 import torch
+from torch.nn import functional as F
 
 import onmt.model_builder
 import onmt.inputters as inputters
@@ -124,6 +125,8 @@ class Translator(object):
             tgt_prefix=False,
             phrase_table="",
             data_type="text",
+            use_stn=False,
+            tps_inputsize=[32,64],
             verbose=False,
             report_time=False,
             copy_attn=False,
@@ -172,6 +175,8 @@ class Translator(object):
         self.tgt_prefix = tgt_prefix
         self.phrase_table = phrase_table
         self.data_type = data_type
+        self.use_stn = use_stn
+        self.tps_inputsize = tps_inputsize
         self.verbose = verbose
         self.report_time = report_time
 
@@ -201,6 +206,8 @@ class Translator(object):
                 "log_probs": []}
 
         set_random_seed(seed, self._use_cuda)
+
+        self.cnt = 0
 
     @classmethod
     def from_opt(
@@ -255,6 +262,8 @@ class Translator(object):
             tgt_prefix=opt.tgt_prefix,
             phrase_table=opt.phrase_table,
             data_type=opt.data_type,
+            use_stn=model_opt.use_stn,
+            tps_inputsize=model_opt.tps_inputsize,
             verbose=opt.verbose,
             report_time=opt.report_time,
             copy_attn=model_opt.copy_attn,
@@ -553,6 +562,18 @@ class Translator(object):
     def _run_encoder(self, batch):
         src, src_lengths = batch.src if isinstance(batch.src, tuple) \
                            else (batch.src, None)
+
+        # import pdb
+        # pdb.set_trace()
+        import skimage.io
+        if self.use_stn:
+            # input images are downsampled before being fed into stn_head.
+            stn_input = F.interpolate(src, self.tps_inputsize, mode='bilinear', align_corners=True)
+            stn_img_feat, ctrl_points = self.model.model_stn_head(stn_input)
+            self.cnt += 1
+            skimage.io.imsave(str(self.cnt)+'-1.jpg', src[0].squeeze().cpu().numpy())
+            src, _ = self.model.model_tps(src, ctrl_points)
+            skimage.io.imsave(str(self.cnt)+'-2.jpg', src[0].squeeze().cpu().numpy())
 
         enc_states, memory_bank, src_lengths = self.model.encoder(
             src, src_lengths)
