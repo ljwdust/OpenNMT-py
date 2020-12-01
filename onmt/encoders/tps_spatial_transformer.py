@@ -54,13 +54,11 @@ def build_output_control_points(num_control_points, margins):
 # demo: ~/test/models/test_tps_transformation.py
 class TPSSpatialTransformer(nn.Module):
 
-  def __init__(self, output_image_size=None, num_control_points=None, margins=None):
+  def __init__(self, num_control_points=None, margins=None):
     super(TPSSpatialTransformer, self).__init__()
-    self.output_image_size = output_image_size
     self.num_control_points = num_control_points
     self.margins = margins
 
-    self.target_height, self.target_width = output_image_size
     target_control_points = build_output_control_points(num_control_points, margins)
     N = num_control_points
     # N = N - 4
@@ -76,36 +74,49 @@ class TPSSpatialTransformer(nn.Module):
     # compute inverse matrix
     inverse_kernel = torch.inverse(forward_kernel)
 
-    # create target cordinate matrix
-    HW = self.target_height * self.target_width
-    target_coordinate = list(itertools.product(range(self.target_height), range(self.target_width)))
-    target_coordinate = torch.Tensor(target_coordinate) # HW x 2
-    Y, X = target_coordinate.split(1, dim = 1)
-    Y = Y / (self.target_height - 1)
-    X = X / (self.target_width - 1)
-    target_coordinate = torch.cat([X, Y], dim = 1) # convert from (y, x) to (x, y)
-    target_coordinate_partial_repr = compute_partial_repr(target_coordinate, target_control_points)
-    target_coordinate_repr = torch.cat([
-      target_coordinate_partial_repr, torch.ones(HW, 1), target_coordinate
-    ], dim = 1)
-
     # register precomputed matrices
     self.register_buffer('inverse_kernel', inverse_kernel)
     self.register_buffer('padding_matrix', torch.zeros(3, 2))
-    self.register_buffer('target_coordinate_repr', target_coordinate_repr)
     self.register_buffer('target_control_points', target_control_points)
+
+
+  def create_coor_matrix(self, size, target_control_points):
+    target_height, target_width = size
+    HW = target_height * target_width
+    target_coordinate = list(itertools.product(range(target_height), range(target_width)))
+    target_coordinate = torch.Tensor(target_coordinate) # HW x 2
+    target_coordinate = target_coordinate.cuda()
+    Y, X = target_coordinate.split(1, dim = 1)
+    Y = Y / (target_height - 1)
+    X = X / (target_width - 1)
+    target_coordinate = torch.cat([X, Y], dim = 1) # convert from (y, x) to (x, y)
+    target_coordinate_partial_repr = compute_partial_repr(target_coordinate, target_control_points)
+    target_coordinate_repr = torch.cat([
+      target_coordinate_partial_repr, torch.ones(HW, 1).cuda(), target_coordinate
+    ], dim = 1)
+    return target_coordinate_repr
+
 
   def forward(self, input, source_control_points):
     assert source_control_points.ndimension() == 3
     assert source_control_points.size(1) == self.num_control_points
     assert source_control_points.size(2) == 2
     batch_size = source_control_points.size(0)
+    image_size = input.shape[2:4]
+    target_height, target_width = image_size
+    if target_width > 500:
+      target_width_new = 480
+      target_height_new = 480 * target_height // target_width
+      image_size = torch.Size([target_height_new, target_width_new])
+
+    # create target cordinate matrix
+    target_coordinate_repr = self.create_coor_matrix(image_size, self.target_control_points)
 
     Y = torch.cat([source_control_points, self.padding_matrix.expand(batch_size, 3, 2)], 1)
     mapping_matrix = torch.matmul(self.inverse_kernel, Y)
-    source_coordinate = torch.matmul(self.target_coordinate_repr, mapping_matrix)
+    source_coordinate = torch.matmul(target_coordinate_repr, mapping_matrix)
 
-    grid = source_coordinate.view(-1, self.target_height, self.target_width, 2)
+    grid = source_coordinate.view(-1, image_size[0], image_size[1], 2)
     grid = torch.clamp(grid, 0, 1) # the source_control_points may be out of [0, 1].
     # the input to grid_sample is normalized [-1, 1], but what we get is [0, 1]
     grid = 2.0 * grid - 1.0

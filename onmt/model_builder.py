@@ -143,7 +143,7 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
     # Build TPS_STN
     if model_opt.use_stn:
         model_tps = TPSSpatialTransformer(
-            output_image_size=tuple(model_opt.tps_outputsize),
+            # output_image_size=tuple(model_opt.tps_outputsize),
             num_control_points=model_opt.num_control_points,
             margins=tuple(model_opt.tps_margins))
         model_stn_head = STNHead(
