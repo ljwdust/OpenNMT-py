@@ -116,7 +116,7 @@ def load_test_model(opt, model_path=None):
     return fields, model, model_opt
 
 
-def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
+def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None, stn_model=None):
     """Build a model from opts.
 
     Args:
@@ -209,6 +209,9 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
         if model_opt.share_decoder_embeddings:
             generator.linear.weight = decoder.embeddings.word_lut.weight
 
+    if stn_model is not None:
+        model.model_stn_head.load_state_dict(stn_model)
+
     # Load the model states from checkpoint or initialize them.
     if checkpoint is not None:
         # This preserves backward-compat for models using customed layernorm
@@ -253,8 +256,8 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
     return model
 
 
-def build_model(model_opt, opt, fields, checkpoint):
+def build_model(model_opt, opt, fields, checkpoint, stn_model):
     logger.info('Building model...')
-    model = build_base_model(model_opt, fields, use_gpu(opt), checkpoint)
+    model = build_base_model(model_opt, fields, use_gpu(opt), checkpoint, stn_model=stn_model)
     logger.info(model)
     return model

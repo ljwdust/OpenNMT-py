@@ -39,11 +39,12 @@ class STNHead(nn.Module):
                           conv3x3_block(128, 256), # 4*8
                           nn.MaxPool2d(kernel_size=2, stride=2),
                           conv3x3_block(256, 256), # 2*4,
-                          nn.MaxPool2d(kernel_size=2, stride=2),
-                          conv3x3_block(256, 256)) # 1*2
+                          # nn.MaxPool2d(kernel_size=2, stride=2),
+                          # conv3x3_block(256, 256)) # 1*2
+                        )
 
     self.stn_fc1 = nn.Sequential(
-                      nn.Linear(2*256, 512),
+                      nn.Linear(3*12*256, 512),
                       nn.BatchNorm1d(512),
                       nn.ReLU(inplace=True))
     self.stn_fc2 = nn.Linear(512, num_ctrlpoints*2)

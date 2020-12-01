@@ -62,7 +62,7 @@ def model_opts(parser):
     # STN Options
     group = parser.add_argument_group('Model-STN')
     group.add('--use_stn', '-use_stn', action='store_true')
-    group.add('--tps_inputsize', '-tps_inputsize', type=int, default=[32,64])
+    group.add('--tps_inputsize', '-tps_inputsize', type=int, default=[48,192])
     group.add('--tps_outputsize', '-tps_outputsize', type=int, default=[32,100])
     group.add('--num_control_points', '-num_control_points', type=int, default=20)
     group.add('--tps_margins', '-tps_margins', type=float, default=[0.05,0.05])
@@ -441,6 +441,9 @@ def train_opts(parser):
     group.add('--reset_optim', '-reset_optim', default='none',
               choices=['none', 'all', 'states', 'keep_states'],
               help="Optimization resetter when train_from.")
+
+    group.add('--stn_model', '-stn_model', default='', type=str,
+              help="path to the pretrained STN_head model.")
 
     # Pretrained word vectors
     group.add('--pre_word_vecs_enc', '-pre_word_vecs_enc',

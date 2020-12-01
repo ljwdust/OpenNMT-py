@@ -61,6 +61,13 @@ def main(opt, device_id, batch_queue=None, semaphore=None):
         model_opt = opt
         vocab = torch.load(opt.data + '.vocab.pt')
 
+    # Load STN pretrained model
+    if opt.stn_model:
+        logger.info('Loading STN model from %s' % opt.stn_model)
+        stn_model = torch.load(opt.stn_model)
+    else:
+        stn_model = None
+
     # check for code where vocab is saved instead of fields
     # (in the future this will be done in a smarter way)
     if old_style_vocab(vocab):
@@ -84,7 +91,7 @@ def main(opt, device_id, batch_queue=None, semaphore=None):
                 logger.info(' * %s vocab size = %d' % (sn, len(sf.vocab)))
 
     # Build model.
-    model = build_model(model_opt, opt, fields, checkpoint)
+    model = build_model(model_opt, opt, fields, checkpoint, stn_model)
     n_params, enc, dec = _tally_parameters(model)
     logger.info('encoder: %d' % enc)
     logger.info('decoder: %d' % dec)
