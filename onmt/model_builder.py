@@ -211,6 +211,8 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None, stn_m
 
     if stn_model is not None:
         model.model_stn_head.load_state_dict(stn_model)
+        for p in model.model_stn_head.parameters():
+            p.requires_grad = False
 
     # Load the model states from checkpoint or initialize them.
     if checkpoint is not None:
