@@ -10,18 +10,6 @@ from torch.nn import functional as F
 from torch.nn import init
 
 
-def conv3x3_block(in_planes, out_planes, stride=1):
-  """3x3 convolution with padding"""
-  conv_layer = nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=1, padding=1)
-
-  block = nn.Sequential(
-    conv_layer,
-    nn.BatchNorm2d(out_planes),
-    nn.ReLU(inplace=True),
-  )
-  return block
-
-
 class STNHead(nn.Module):
   def __init__(self, in_planes, num_ctrlpoints, activation='none'):
     super(STNHead, self).__init__()
@@ -29,29 +17,42 @@ class STNHead(nn.Module):
     self.in_planes = in_planes
     self.num_ctrlpoints = num_ctrlpoints
     self.activation = activation
-    self.stn_convnet = nn.Sequential(
-                          conv3x3_block(in_planes, 32), # 32*64
-                          nn.MaxPool2d(kernel_size=2, stride=2),
-                          conv3x3_block(32, 64), # 16*32
-                          nn.MaxPool2d(kernel_size=2, stride=2),
-                          conv3x3_block(64, 128), # 8*16
-                          nn.MaxPool2d(kernel_size=2, stride=2),
-                          conv3x3_block(128, 256), # 4*8
-                          nn.MaxPool2d(kernel_size=2, stride=2),
-                          conv3x3_block(256, 256), # 2*4,
-                          # nn.MaxPool2d(kernel_size=2, stride=2),
-                          # conv3x3_block(256, 256)) # 1*2
-                        )
 
+    gfc = 64
+    input_width = 192
+    input_height = 48
+    n_downscale = 3
+    gfs_width = input_width // (2**n_downscale)
+    gfs_height = input_height // (2**n_downscale)
+    loc_conv = []
+    loc_conv.append(nn.Conv2d(1, gfc, kernel_size=3, stride=1, padding=1))
+    loc_conv.append(nn.BatchNorm2d(gfc))
+    loc_conv.append(nn.ReLU(True))
+    for i in range(n_downscale):
+      loc_conv.append(nn.Conv2d(2**i*gfc, 2**(i+1)*gfc, kernel_size=4, stride=2, padding=1))
+      loc_conv.append(nn.BatchNorm2d(2**(i+1)*gfc))
+      loc_conv.append(nn.ReLU(True))
+      loc_conv.append(nn.Conv2d(2**(i+1)*gfc, 2**(i+1)*gfc, kernel_size=3, stride=1, padding=1))
+      loc_conv.append(nn.BatchNorm2d(2**(i+1)*gfc))
+      loc_conv.append(nn.ReLU(True))
+
+    self.stn_convnet = nn.Sequential(*loc_conv)
+
+
+    self.numel = (gfs_width*gfs_height)*gfc*(2**n_downscale)
     self.stn_fc1 = nn.Sequential(
-                      nn.Linear(3*12*256, 512),
-                      nn.BatchNorm1d(512),
-                      nn.ReLU(inplace=True))
-    self.stn_fc2 = nn.Linear(512, num_ctrlpoints*2)
+      nn.Linear(self.numel, 1024),
+      nn.ReLU(True),
+      nn.Linear(1024, 1024),
+      nn.ReLU(True),
+    )
+    self.stn_fc2 = nn.Linear(1024, num_ctrlpoints*2)
+
 
     self.init_weights(self.stn_convnet)
     self.init_weights(self.stn_fc1)
     self.init_stn(self.stn_fc2)
+
 
   def init_weights(self, module):
     for m in module.modules():
@@ -103,3 +104,4 @@ if __name__ == "__main__":
   input = torch.randn(10, 3, 32, 64)
   control_points = stn_head(input)    
   print(control_points.size())
+  
