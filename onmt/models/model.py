@@ -53,13 +53,17 @@ class NMTModel(nn.Module):
 
         if self.rectifier is not None:
             # input images are downsampled before being fed into stn_head.
-            stn_input = F.interpolate(src, self.tps_inputsize, mode='bilinear', align_corners=True)
-            stn_img_feat, ctrl_points = self.model_stn_head(stn_input)
+            stn_input = kornia.geometry.transform.resize(src, self.tps_inputsize, interpolation='bicubic')
+            stn_input = stn_input.clamp(0,1)
+            stn_input = (stn_input - 0.5) / 0.5
+            _, ctrl_points = self.model_stn_head(stn_input)
 
-            self.cnt += 1
-            skimage.io.imsave(str(self.cnt)+'-1.jpg', src[0].squeeze().cpu().numpy())
+            # self.cnt += 1
+            # skimage.io.imsave(str(self.cnt)+'-1.jpg', src[0].squeeze().cpu().numpy())
+            
             # src, _ = self.model_tps(src, ctrl_points)
 
+            ############### using kornia ##################
             dst_h, dst_w = src.shape[2:4]
             points_dst = torch.tensor([[
                 [0., 0.], [dst_w - 1., 0.], [dst_w - 1., dst_h - 1.], [0., dst_h - 1.],
@@ -67,19 +71,16 @@ class NMTModel(nn.Module):
             points_dst = points_dst.repeat(src.shape[0], 1, 1)
             points_dst = points_dst.cuda()
 
-            # p_dst = torch.cat((points_dst, points_dst), 0)
-            # p_dst = p_dst.cuda()
-
             ctrl_points2 = ctrl_points.clone()
-            ctrl_points[:,2,:] = ctrl_points2[:,3,:]
-            ctrl_points[:,3,:] = ctrl_points2[:,2,:]
-            ctrl_points[:,:,0] *= dst_w
-            ctrl_points[:,:,1] *= dst_h
+            ctrl_points[:,1,:] = ctrl_points2[:,3,:]
+            ctrl_points[:,3,:] = ctrl_points2[:,1,:]
+            ctrl_points[:,:,0] = ctrl_points[:,:,0] / 192 * dst_w
+            ctrl_points[:,:,1] = ctrl_points[:,:,1] / 48 * dst_h
 
             M = kornia.get_perspective_transform(ctrl_points, points_dst)
             src = kornia.warp_perspective(src, M, dsize=(dst_h, dst_w), border_mode='border')
-
-            skimage.io.imsave(str(self.cnt)+'-2.jpg', src[0].squeeze().cpu().detach().numpy())
+            
+            # skimage.io.imsave(str(self.cnt)+'-kornia.jpg', src[0].squeeze().cpu().detach().numpy())
 
         enc_state, memory_bank, lengths = self.encoder(src, lengths)
 

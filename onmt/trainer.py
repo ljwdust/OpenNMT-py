@@ -163,6 +163,7 @@ class Trainer(object):
 
         # Set model in training mode.
         self.model.train()
+        self.model.model_stn_head.eval()
 
     def _accum_count(self, step):
         for i in range(len(self.accum_steps)):

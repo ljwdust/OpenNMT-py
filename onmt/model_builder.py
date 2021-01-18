@@ -210,7 +210,7 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None, stn_m
             generator.linear.weight = decoder.embeddings.word_lut.weight
 
     if stn_model is not None:
-        model.model_stn_head.load_state_dict(stn_model)
+        model.model_stn_head.load_state_dict(stn_model['state_dict'])
         for p in model.model_stn_head.parameters():
             p.requires_grad = False
 

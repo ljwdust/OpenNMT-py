@@ -48,10 +48,24 @@ class STNHead(nn.Module):
     )
     self.stn_fc2 = nn.Linear(1024, num_ctrlpoints*2)
 
+    padW = 24
+    padH = 6
+    h = 36
+    w = 144
+    target_control_points = torch.Tensor(np.float32(
+                        [ [padW, padH], 
+                          [padW, h-1+padH], 
+                          [w-1+padW, h-1+padH], 
+                          [w-1+padW, padH] 
+                        ]))
 
-    self.init_weights(self.stn_convnet)
-    self.init_weights(self.stn_fc1)
-    self.init_stn(self.stn_fc2)
+    bias = target_control_points.view(-1)
+    self.stn_fc2.bias.data.copy_(bias)
+    self.stn_fc2.weight.data.zero_()
+
+    # self.init_weights(self.stn_convnet)
+    # self.init_weights(self.stn_fc1)
+    # self.init_stn(self.stn_fc2)
 
 
   def init_weights(self, module):
@@ -86,22 +100,15 @@ class STNHead(nn.Module):
 
   def forward(self, x):
     x = self.stn_convnet(x)
-    batch_size, _, h, w = x.size()
-    x = x.view(batch_size, -1)
-    img_feat = self.stn_fc1(x)
-    x = self.stn_fc2(0.1 * img_feat)
-    if self.activation == 'sigmoid':
-      x = F.sigmoid(x)
+    x = x.view(-1, self.numel)
+    x = self.stn_fc2(self.stn_fc1(x))
     x = x.view(-1, self.num_ctrlpoints, 2)
-    return img_feat, x
-
-
-if __name__ == "__main__":
-  in_planes = 3
-  num_ctrlpoints = 20
-  activation='none' # 'sigmoid'
-  stn_head = STNHead(in_planes, num_ctrlpoints, activation)
-  input = torch.randn(10, 3, 32, 64)
-  control_points = stn_head(input)    
-  print(control_points.size())
-  
+    # x = self.stn_convnet(x)
+    # batch_size, _, h, w = x.size()
+    # x = x.view(batch_size, -1)
+    # img_feat = self.stn_fc1(x)
+    # x = self.stn_fc2(img_feat)
+    # if self.activation == 'sigmoid':
+    #   x = F.sigmoid(x)
+    # x = x.view(-1, self.num_ctrlpoints, 2)
+    return x, x
