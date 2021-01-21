@@ -18,6 +18,7 @@ from onmt.translate.greedy_search import GreedySearch
 from onmt.utils.misc import tile, set_random_seed, report_matrix
 from onmt.utils.alignment import extract_alignment, build_align_pharaoh
 from onmt.modules.copy_generator import collapse_copy_scores
+import kornia
 
 
 def build_translator(opt, report_score=True, logger=None, out_file=None):
@@ -568,11 +569,33 @@ class Translator(object):
         import skimage.io
         if self.use_stn:
             # input images are downsampled before being fed into stn_head.
-            stn_input = F.interpolate(src, self.tps_inputsize, mode='bilinear', align_corners=True)
-            stn_img_feat, ctrl_points = self.model.model_stn_head(stn_input)
+            # stn_input = F.interpolate(src, self.tps_inputsize, mode='bilinear', align_corners=True)
+            stn_input = kornia.geometry.transform.resize(src, self.tps_inputsize, interpolation='bicubic')
+            stn_input = stn_input.clamp(0,1)
+            stn_input = (stn_input - 0.5) / 0.5
+            _, ctrl_points = self.model.model_stn_head(stn_input)
             self.cnt += 1
             skimage.io.imsave(str(self.cnt)+'-1.jpg', src[0].squeeze().cpu().numpy())
-            src, _ = self.model.model_tps(src, ctrl_points)
+            # src, _ = self.model.model_tps(src, ctrl_points)
+            
+            ############### using kornia ##################
+            dst_h, dst_w = src.shape[2:4]
+            points_dst = torch.tensor([[
+                [0., 0.], [dst_w - 1., 0.], [dst_w - 1., dst_h - 1.], [0., dst_h - 1.],
+            ]])
+            points_dst = points_dst.repeat(src.shape[0], 1, 1)
+            points_dst = points_dst.cuda()
+
+            ctrl_points2 = ctrl_points.clone()
+            ctrl_points[:,1,:] = ctrl_points2[:,3,:]
+            ctrl_points[:,3,:] = ctrl_points2[:,1,:]
+            ctrl_points[:,:,0] = ctrl_points[:,:,0] / 192 * dst_w
+            ctrl_points[:,:,1] = ctrl_points[:,:,1] / 48 * dst_h
+
+            M = kornia.get_perspective_transform(ctrl_points, points_dst)
+            src = kornia.warp_perspective(src, M, dsize=(dst_h, dst_w), border_mode='border')
+            
+            
             skimage.io.imsave(str(self.cnt)+'-2.jpg', src[0].squeeze().cpu().numpy())
 
         enc_states, memory_bank, src_lengths = self.model.encoder(
