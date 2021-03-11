@@ -567,9 +567,14 @@ class Translator(object):
         # import pdb
         # pdb.set_trace()
         import skimage.io
-        if self.use_stn:
+        notusestn = False
+        if self.use_stn and notusestn:
             # input images are downsampled before being fed into stn_head.
             # stn_input = F.interpolate(src, self.tps_inputsize, mode='bilinear', align_corners=True)
+            h,w = src.shape[2:4]
+            padW = w//6
+            padH = h//6
+            src = torch.nn.functional.pad(src, (padW, padW, padH, padH), mode='constant', value=1)
             stn_input = kornia.geometry.transform.resize(src, self.tps_inputsize, interpolation='bicubic')
             stn_input = stn_input.clamp(0,1)
             stn_input = (stn_input - 0.5) / 0.5
@@ -581,8 +586,9 @@ class Translator(object):
             ############### using kornia ##################
             dst_h, dst_w = src.shape[2:4]
             points_dst = torch.tensor([[
-                [0., 0.], [dst_w - 1., 0.], [dst_w - 1., dst_h - 1.], [0., dst_h - 1.],
+                [padW, padH], [dst_w - 1 - padW, padH], [dst_w - 1 - padW, dst_h - 1 - padH], [padW, dst_h - 1 - padH],
             ]])
+            points_dst = points_dst.float()
             points_dst = points_dst.repeat(src.shape[0], 1, 1)
             points_dst = points_dst.cuda()
 
