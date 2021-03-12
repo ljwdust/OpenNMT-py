@@ -24,6 +24,7 @@ from onmt.utils.logging import logger
 from onmt.inputters.text_dataset import _feature_tokenize  # noqa: F401
 from onmt.inputters.image_dataset import (  # noqa: F401
     batch_img as make_img)
+from onmt.inputters.augment import distort, stretch, perspective
 
 import gc
 
@@ -889,6 +890,24 @@ class DatasetLazyIter(object):
         imgIn = torch.from_numpy(imgIn.transpose(2, 0, 1)).float() / 255
         return imgIn
 
+    def _img_augment(self, img, segment=10):
+        img = img.numpy().transpose(1, 2, 0)
+        img = img * 255
+        img = img.round().astype(np.uint8).squeeze()
+
+        randnum = np.random.randint(3)
+        if randnum == 0:
+            imgIn = distort(img, segment)
+        elif randnum == 1:
+            imgIn = stretch(img, segment)
+        elif randnum == 2:
+            imgIn = perspective(img)
+
+        if imgIn.ndim == 2:
+            imgIn = imgIn[:, :, np.newaxis]
+        imgIn = torch.from_numpy(imgIn.transpose(2, 0, 1)).float() / 255
+        return imgIn
+
     def _iter_dataset(self, path):
         logger.info('Loading dataset from %s' % path)
         cur_dataset = torch.load(path)
@@ -897,7 +916,8 @@ class DatasetLazyIter(object):
         # The perspective deformation
         if self.use_stn:
             for curdata in cur_dataset:
-                curdata.src = self.perspect_deform(curdata.src)
+                # curdata.src = self.perspect_deform(curdata.src)
+                curdata.src = self._img_augment(curdata.src)
         cur_iter = OrderedIterator(
             dataset=cur_dataset,
             batch_size=self.batch_size,
