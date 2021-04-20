@@ -902,6 +902,10 @@ class DatasetLazyIter(object):
             imgIn = stretch(img, segment)
         elif randnum == 2:
             imgIn = perspective(img)
+        
+        # resize
+        coef = np.random.random()*1.2+0.8
+        imgIn = cv2.resize(imgIn, (round(imgIn.shape[1]*coef),round(imgIn.shape[0]*coef)), interpolation=cv2.INTER_AREA)
 
         if imgIn.ndim == 2:
             imgIn = imgIn[:, :, np.newaxis]
