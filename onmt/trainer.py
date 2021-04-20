@@ -89,7 +89,8 @@ def build_trainer(opt, device_id, model, fields, optim, model_saver=None):
                            earlystopper=earlystopper,
                            dropout=dropout,
                            dropout_steps=dropout_steps,
-                           source_noise=source_noise)
+                           source_noise=source_noise,
+                           use_stn=opt.use_stn)
     return trainer
 
 
@@ -127,7 +128,7 @@ class Trainer(object):
                  report_manager=None, with_align=False, model_saver=None,
                  average_decay=0, average_every=1, model_dtype='fp32',
                  earlystopper=None, dropout=[0.3], dropout_steps=[0],
-                 source_noise=None):
+                 source_noise=None, use_stn=False):
         # Basic attributes.
         self.model = model
         self.train_loss = train_loss
@@ -153,6 +154,7 @@ class Trainer(object):
         self.dropout = dropout
         self.dropout_steps = dropout_steps
         self.source_noise = source_noise
+        self.use_stn = use_stn
 
         for i in range(len(self.accum_count_l)):
             assert self.accum_count_l[i] > 0
@@ -163,7 +165,8 @@ class Trainer(object):
 
         # Set model in training mode.
         self.model.train()
-        self.model.model_stn_head.eval()
+        if self.use_stn:
+            self.model.model_stn_head.eval()
 
     def _accum_count(self, step):
         for i in range(len(self.accum_steps)):
