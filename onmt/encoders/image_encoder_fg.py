@@ -48,7 +48,7 @@ class ImageEncoder(EncoderBase):
         self.batch_norm2 = nn.BatchNorm2d(128)
         self.batch_norm3 = nn.BatchNorm2d(128)
 
-        src_size = 512
+        src_size = 128
         dropout = dropout[0] if type(dropout) is list else dropout
         self.rnn = nn.LSTM(src_size, int(rnn_size / self.num_directions),
                            num_layers=num_layers,
