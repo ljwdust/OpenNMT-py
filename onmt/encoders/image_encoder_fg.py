@@ -23,15 +23,15 @@ class ImageEncoder(EncoderBase):
         self.num_directions = 2 if bidirectional else 1
         self.hidden_size = rnn_size
 
-        self.layer1 = nn.Conv2d(image_chanel_size, 64, kernel_size=(3, 3),
+        self.layer1 = nn.Conv2d(image_chanel_size, 32, kernel_size=(3, 3),
                                 padding=(1, 1), stride=(1, 1))
-        self.layer2 = nn.Conv2d(64, 64, kernel_size=(3, 3),
+        self.layer2 = nn.Conv2d(32, 64, kernel_size=(3, 3),
                                 padding=(1, 1), stride=(1, 1))
-        self.layer3 = nn.Conv2d(64, 128, kernel_size=(3, 3),
+        self.layer3 = nn.Conv2d(64, 64, kernel_size=(3, 3),
                                 padding=(1, 1), stride=(1, 1))
-        self.layer4 = nn.Conv2d(128, 128, kernel_size=(3, 3),
+        self.layer4 = nn.Conv2d(64, 64, kernel_size=(3, 3),
                                 padding=(1, 1), stride=(1, 1))
-        self.layer5 = nn.Conv2d(128, 128, kernel_size=(3, 3),
+        self.layer5 = nn.Conv2d(64, 128, kernel_size=(3, 3),
                                 padding=(1, 1), stride=(1, 1))
         self.layer6 = nn.Conv2d(128, 128, kernel_size=(3, 3),
                                 padding=(1, 1), stride=(1, 1))
@@ -44,7 +44,7 @@ class ImageEncoder(EncoderBase):
         self.layer10 = nn.Conv2d(128, 128, kernel_size=(3, 3),
                                 padding=(1, 1), stride=(1, 1))
 
-        self.batch_norm1 = nn.BatchNorm2d(128)
+        self.batch_norm1 = nn.BatchNorm2d(64)
         self.batch_norm2 = nn.BatchNorm2d(128)
         self.batch_norm3 = nn.BatchNorm2d(128)
 
@@ -89,20 +89,22 @@ class ImageEncoder(EncoderBase):
 
         # (batch_size, 64, imgH/2, imgW/2)
         src = F.max_pool2d(src, kernel_size=(2, 2), stride=(2, 2))
+        src = F.relu(self.batch_norm1(src), True)
 
         # (batch_size, 128, imgH/2, imgW/2)
         # block 2
-        src = F.relu(self.batch_norm1(self.layer3(src)), True)
+        src = F.relu(self.layer3(src), True)
         src = F.relu(self.layer4(src), True)
         src = F.relu(self.layer5(src), True)
         src = F.relu(self.layer6(src), True)
 
         # (batch_size, 128, imgH/2/2, imgW/2)
         src = F.max_pool2d(src, kernel_size=(1, 2), stride=(1, 2))
+        src = F.relu(self.batch_norm2(src), True)
 
         # (batch_size, 128, imgH/2/2, imgW/2)
         # block 3
-        src = F.relu(self.batch_norm2(self.layer7(src)), True)
+        src = F.relu(self.layer7(src), True)
         src = F.relu(self.layer8(src), True)
         src = F.relu(self.layer9(src), True)
 
