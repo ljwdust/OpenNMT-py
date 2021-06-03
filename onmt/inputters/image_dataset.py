@@ -96,7 +96,9 @@ def batch_img(data, vocab):
     w = max([t.size(2) for t in data])
     imgs = torch.zeros(len(data), c, h, w).fill_(1)
     for i, img in enumerate(data):
-        imgs[i, :, 0:img.size(1), 0:img.size(2)] = img
+        h_margin = (h-img.size(1))//2
+        w_margin = (w-img.size(2))//2
+        imgs[i, :, h_margin:h_margin+img.size(1), w_margin:w_margin+img.size(2)] = img
     return imgs
 
 
