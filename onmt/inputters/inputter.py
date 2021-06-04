@@ -841,7 +841,7 @@ class DatasetLazyIter(object):
         img = img.round().astype(np.uint8).squeeze()
 
         # resize
-        img = cv2.resize(img, (round(32*img.size(2)/img.size(1)), 32), interpolation=cv2.INTER_AREA)
+        img = cv2.resize(img, (round(32*img.shape[1]/img.shape[0]), 32), interpolation=cv2.INTER_AREA)
 
         if img.ndim == 2:
             img = img[:, :, np.newaxis]
