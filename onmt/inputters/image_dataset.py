@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import numpy as np
 
 import torch
 from torchtext.data import Field
@@ -92,11 +93,10 @@ def img_sort_key(ex):
 def batch_img(data, vocab):
     """Pad and batch a sequence of images."""
     c = data[0].size(0)
-    h = 32
-    w = max([32*t.size(2)/t.size(1) for t in data])
+    h = max([t.size(1) for t in data])
+    w = max([t.size(2) for t in data])
     imgs = torch.zeros(len(data), c, h, w).fill_(1)
     for i, img in enumerate(data):
-        img = cv2.resize(img, (32*img.size(2)/img.size(1), 32), interpolation=cv2.INTER_AREA)
         imgs[i, :, 0:img.size(1), 0:img.size(2)] = img
         # h_margin = (h-img.size(1))//2
         # w_margin = (w-img.size(2))//2

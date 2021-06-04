@@ -3,6 +3,8 @@ import glob
 import os
 import codecs
 import math
+import numpy as np
+import cv2
 
 from collections import Counter, defaultdict
 from itertools import chain, cycle
@@ -833,11 +835,26 @@ class DatasetLazyIter(object):
         self.yield_raw_example = yield_raw_example
         self.pool_factor = pool_factor
 
+    def _img_augment(self, img):
+        img = img.numpy().transpose(1, 2, 0)
+        img = img * 255
+        img = img.round().astype(np.uint8).squeeze()
+
+        # resize
+        img = cv2.resize(img, (round(32*img.size(2)/img.size(1)), 32), interpolation=cv2.INTER_AREA)
+
+        if img.ndim == 2:
+            img = img[:, :, np.newaxis]
+        img = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255
+        return img
+
     def _iter_dataset(self, path):
         logger.info('Loading dataset from %s' % path)
         cur_dataset = torch.load(path)
         logger.info('number of examples: %d' % len(cur_dataset))
         cur_dataset.fields = self.fields
+        for curdata in cur_dataset:
+            curdata.src = self._img_augment(curdata.src)
         cur_iter = OrderedIterator(
             dataset=cur_dataset,
             batch_size=self.batch_size,
