@@ -392,6 +392,10 @@ def train_opts(parser):
               help="""Save a checkpoint every X steps""")
     group.add('--keep_checkpoint', '-keep_checkpoint', type=int, default=-1,
               help="Keep X checkpoints (negative: keep all)")
+     
+    # Data augmentation
+    group.add('--augment_mode', '-augment_mode', type=str, default='none',
+              help="data augmentation mode")
 
     # GPU
     group.add('--gpuid', '-gpuid', default=[], nargs='*', type=int,

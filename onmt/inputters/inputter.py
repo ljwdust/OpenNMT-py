@@ -822,7 +822,7 @@ class DatasetLazyIter(object):
 
     def __init__(self, dataset_paths, fields, batch_size, batch_size_fn,
                  batch_size_multiple, device, is_train, pool_factor,
-                 repeat=True, num_batches_multiple=1, yield_raw_example=False):
+                 repeat=True, num_batches_multiple=1, yield_raw_example=False, augment_mode='none'):
         self._paths = dataset_paths
         self.fields = fields
         self.batch_size = batch_size
@@ -834,14 +834,46 @@ class DatasetLazyIter(object):
         self.num_batches_multiple = num_batches_multiple
         self.yield_raw_example = yield_raw_example
         self.pool_factor = pool_factor
+        self.augment_mode = augment_mode
 
     def _img_augment(self, img):
+        # transfer image type from tensor to array
         img = img.numpy().transpose(1, 2, 0)
         img = img * 255
         img = img.round().astype(np.uint8).squeeze()
+        H = img.shape[0]
+        W = img.shape[1]
 
-        # resize
-        img = cv2.resize(img, (round(32*img.shape[1]/img.shape[0]), 32), interpolation=cv2.INTER_AREA)
+        if 'cutedge' in self.augment_mode:
+            pass
+
+        if 'distort' in self.augment_mode:
+            pass
+
+        # Zoom out and in to deblur the image
+        if 'zoominout' in self.augment_mode and np.random.random() > 0.5:
+            coef = np.random.random() * 0.3 + 0.7 #[0.7,1]
+            img = cv2.resize(img, (round(W*coef),round(H*coef)), interpolation=cv2.INTER_CUBIC)
+            img = cv2.resize(img, (W,H), interpolation=cv2.INTER_CUBIC)
+
+        # random resize the image
+        if 'resize' in self.augment_mode and np.random.random() > 0.5:
+            coef = np.random.random() * 1.2 + 0.8 #[0.8,2]
+            img = cv2.resize(img, (round(W*coef),round(H*coef)), interpolation=cv2.INTER_CUBIC)
+
+        # make color light
+        if 'color' in self.augment_mode and np.random.random() > 0.5:
+            coef = np.random.random() * 0.5 + 0.5 #[0.5,0.5]
+            img = (255 - (255 - img) * coef).round().astype(np.uint8)
+
+        if 'deblur' in self.augment_mode:
+            pass
+
+        # add random noise
+        if 'noise' in self.augment_mode and np.random.random() > 0.5:
+            coef = np.random.randint(1,21) #[1,20]
+            noise = (np.random.rand(H, W) - 0.5) * 2
+            img += (noise * coef).round()
 
         if img.ndim == 2:
             img = img[:, :, np.newaxis]
@@ -853,8 +885,9 @@ class DatasetLazyIter(object):
         cur_dataset = torch.load(path)
         logger.info('number of examples: %d' % len(cur_dataset))
         cur_dataset.fields = self.fields
-        for curdata in cur_dataset:
-            curdata.src = self._img_augment(curdata.src)
+        if self.augment_mode != 'none':
+            for curdata in cur_dataset:
+                curdata.src = self._img_augment(curdata.src)
         cur_iter = OrderedIterator(
             dataset=cur_dataset,
             batch_size=self.batch_size,
@@ -963,7 +996,8 @@ def build_dataset_iter(corpus_type, fields, opt, is_train=True, multi=False):
         opt.pool_factor,
         repeat=not opt.single_pass,
         num_batches_multiple=max(opt.accum_count) * opt.world_size,
-        yield_raw_example=multi)
+        yield_raw_example=multi,
+        augment_mode=opt.augment_mode)
 
 
 def build_dataset_iter_multiple(train_shards, fields, opt):
