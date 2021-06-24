@@ -872,8 +872,11 @@ class DatasetLazyIter(object):
         # add random noise
         if 'noise' in self.augment_mode and np.random.random() > 0.5:
             coef = np.random.randint(1,21) #[1,20]
-            noise = (np.random.rand(H, W) - 0.5) * 2
-            img += (noise * coef).round()
+            noise = (np.random.rand(img.shape[0], img.shape[1]) - 0.5) * 2
+            img = img + (noise * coef).round()
+            img = np.maximum(img, 0)
+            img = np.minimum(img, 255)
+            img = img.astype(np.uint8)
 
         if img.ndim == 2:
             img = img[:, :, np.newaxis]
