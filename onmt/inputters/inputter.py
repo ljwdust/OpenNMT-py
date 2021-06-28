@@ -24,6 +24,7 @@ from onmt.utils.logging import logger
 from onmt.inputters.text_dataset import _feature_tokenize  # noqa: F401
 from onmt.inputters.image_dataset import (  # noqa: F401
     batch_img as make_img)
+from onmt.inputters.augment import distort, stretch, perspective
 
 import gc
 
@@ -848,7 +849,13 @@ class DatasetLazyIter(object):
             pass
 
         if 'distort' in self.augment_mode:
-            pass
+            randnum = np.random.randint(3)
+            if randnum == 0:
+                img = distort(img, segment=10)
+            elif randnum == 1:
+                img = stretch(img, segment=10)
+            elif randnum == 2:
+                img = perspective(img)
 
         # Zoom out and in to deblur the image
         if 'zoominout' in self.augment_mode and np.random.random() > 0.5:
