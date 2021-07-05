@@ -5,6 +5,7 @@ import codecs
 import os
 import time
 import numpy as np
+import cv2
 from itertools import count, zip_longest
 
 import torch
@@ -124,6 +125,7 @@ class Translator(object):
             tgt_prefix=False,
             phrase_table="",
             data_type="text",
+            use_preprocess=False,
             verbose=False,
             report_time=False,
             copy_attn=False,
@@ -172,6 +174,7 @@ class Translator(object):
         self.tgt_prefix = tgt_prefix
         self.phrase_table = phrase_table
         self.data_type = data_type
+        self.use_preprocess = use_preprocess
         self.verbose = verbose
         self.report_time = report_time
 
@@ -255,6 +258,7 @@ class Translator(object):
             tgt_prefix=opt.tgt_prefix,
             phrase_table=opt.phrase_table,
             data_type=opt.data_type,
+            use_preprocess=opt.use_preprocess,
             verbose=opt.verbose,
             report_time=opt.report_time,
             copy_attn=model_opt.copy_attn,
@@ -550,10 +554,58 @@ class Translator(object):
             return self._translate_batch_with_strategy(batch, src_vocabs,
                                                        decode_strategy)
 
+    def auto_resize(self, img, target_height):
+        img = img.numpy().transpose(0,2,3,1)
+        img = img * 255
+        img = img.round().astype(np.uint8).squeeze()
+
+        _, dst = cv2.threshold(img, 180, 255, cv2.THRESH_BINARY_INV)
+
+        # sau = filters.threshold_sauvola(img, 51, 0.15)
+        # res = np.minimum(img.astype(float) + (img>sau)*255, 255)
+        # img = res.astype('uint8')
+
+        retval, labels = cv2.connectedComponents(dst)
+
+        # bbox: xl,xr,yt,yb
+        cnt = labels.max() + 1
+        bbox = np.zeros((cnt,4))
+        bbox[:,0] = 1000000
+        bbox[:,2] = 1000000
+        for y in range(labels.shape[0]):
+            for x in range(labels.shape[1]):
+                l = labels[y][x]
+                bbox[l][0] = x if bbox[l][0] > x else bbox[l][0]
+                bbox[l][1] = x if bbox[l][1] < x else bbox[l][1]
+                bbox[l][2] = y if bbox[l][2] > y else bbox[l][2]
+                bbox[l][3] = y if bbox[l][2] < y else bbox[l][2]
+
+        heights = bbox[:,3] - bbox[:,2] + 1
+        # print(heights)
+        heights = heights[1:]
+        diff = heights.max() - heights.min()
+        highthres = heights.max() - diff * 0.2
+        lowthres = heights.min() + diff * 0.2
+        mid_heights = heights[np.logical_and(heights>lowthres, heights<highthres)]
+        mean_hei = mid_heights.mean()
+        # print(mean_hei)
+
+        img = cv2.resize(img, (round(img.shape[1]*target_height/mean_hei),
+                    round(img.shape[0]*target_height/mean_hei)), interpolation=cv2.INTER_CUBIC)
+
+        if img.ndim == 2:
+            img = img[:, :, np.newaxis]
+        img = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255
+        img = img.unsqueeze(0)
+        return img
+
     def _run_encoder(self, batch):
         src, src_lengths = batch.src if isinstance(batch.src, tuple) \
                            else (batch.src, None)
 
+        target_height = 13 #TODO:need to be adjusted
+        if self.use_preprocess:
+            src = self.auto_resize(src, target_height)
         enc_states, memory_bank, src_lengths = self.model.encoder(
             src, src_lengths)
         if src_lengths is None:

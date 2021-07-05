@@ -675,6 +675,8 @@ def translate_opts(parser):
               help="Report alignment for each translation.")
     group.add('--report_time', '-report_time', action='store_true',
               help="Report some translation time metrics")
+    group.add('--use_preprocess', '-use_preprocess', action="store_true",
+              help='Preprocess test image before translation')
 
     # Options most relevant to summarization.
     group.add('--dynamic_dict', '-dynamic_dict', action='store_true',
