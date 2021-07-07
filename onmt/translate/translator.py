@@ -584,11 +584,23 @@ class Translator(object):
         # print(heights)
         heights = heights[1:]
         diff = heights.max() - heights.min()
-        highthres = heights.max() - diff * 0.2
-        lowthres = heights.min() + diff * 0.2
-        mid_heights = heights[np.logical_and(heights>lowthres, heights<highthres)]
+        step = diff / 5
+        sizelist = []
+        for i in range(5):
+            curr_heights = heights[np.logical_and(heights>=heights.min()+step*i, heights<heights.min()+step*(i+1)+0.001)]
+            sizelist.append(curr_heights.size)
+        idx = sizelist.index(max(sizelist))
+        mid_heights = heights[np.logical_and(heights>=heights.min()+step*idx, heights<heights.min()+step*(idx+1)+0.001)]
+        sizelist[idx] = 0
+        idx = sizelist.index(max(sizelist))
+        mid_heights2 = heights[np.logical_and(heights>=heights.min()+step*idx, heights<heights.min()+step*(idx+1)+0.001)]
+        mid_heights = np.append(mid_heights,mid_heights2)
+
+        # highthres = heights.max() - diff * 0.2
+        # lowthres = heights.min() + diff * 0.2
+        # mid_heights = heights[np.logical_and(heights>lowthres, heights<highthres)]
         mean_hei = mid_heights.mean()
-        # print(mean_hei)
+        print('======> ratio: ', target_height/mean_hei)
 
         img = cv2.resize(img, (round(img.shape[1]*target_height/mean_hei),
                     round(img.shape[0]*target_height/mean_hei)), interpolation=cv2.INTER_CUBIC)
