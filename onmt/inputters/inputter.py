@@ -848,7 +848,7 @@ class DatasetLazyIter(object):
         if 'cutedge' in self.augment_mode:
             pass
 
-        if 'distort' in self.augment_mode:
+        if 'distort' in self.augment_mode and np.random.random() > 0.5 and W > 30:
             randnum = np.random.randint(3)
             if randnum == 0:
                 img = distort(img, segment=10)
@@ -870,10 +870,10 @@ class DatasetLazyIter(object):
 
         # make color light
         if 'color' in self.augment_mode and np.random.random() > 0.5:
-            coef = np.random.random() * 0.5 + 0.5 #[0.5,0.5]
+            coef = np.random.random() * 0.5 + 0.5 #[0.5,1]
             img = (255 - (255 - img) * coef).round().astype(np.uint8)
 
-        if 'deblur' in self.augment_mode:
+        if 'blur' in self.augment_mode:
             pass
 
         # add random noise
