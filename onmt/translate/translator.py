@@ -6,6 +6,7 @@ import os
 import time
 import numpy as np
 import cv2
+from skimage import filters
 from itertools import count, zip_longest
 
 import torch
@@ -555,21 +556,27 @@ class Translator(object):
                                                        decode_strategy)
 
     def auto_resize(self, img, target_height):
+        imgori = img.clone()
         img = img.numpy().transpose(0,2,3,1)
         img = img * 255
         img = img.round().astype(np.uint8).squeeze()
 
-        _, dst = cv2.threshold(img, 180, 255, cv2.THRESH_BINARY_INV)
+        # Method 1: direct threshold
+        # _, dst = cv2.threshold(img, 180, 255, cv2.THRESH_BINARY_INV)
 
-        # sau = filters.threshold_sauvola(img, 51, 0.15)
-        # res = np.minimum(img.astype(float) + (img>sau)*255, 255)
-        # img = res.astype('uint8')
+        # Method 2: dynamic threshold
+        sau = filters.threshold_sauvola(img, 15, 0.2)
+        res = (img<sau)*255
+        dst = res.astype('uint8')
 
         retval, labels = cv2.connectedComponents(dst)
 
         # bbox: xl,xr,yt,yb
+        if labels.max() == 0:
+            return imgori
         cnt = labels.max() + 1
-        bbox = np.zeros((cnt,4))
+
+        bbox = np.zeros((cnt,4), dtype=np.int32)
         bbox[:,0] = 1000000
         bbox[:,2] = 1000000
         for y in range(labels.shape[0]):
@@ -584,26 +591,35 @@ class Translator(object):
         # print(heights)
         heights = heights[1:]
         diff = heights.max() - heights.min()
+
+        lowthres = heights.min() + diff * 0.05
+        heights = heights[heights>lowthres]
+        if len(heights) == 0:
+            return imgori
+
         step = diff / 5
         sizelist = []
         for i in range(5):
             curr_heights = heights[np.logical_and(heights>=heights.min()+step*i, heights<heights.min()+step*(i+1)+0.001)]
             sizelist.append(curr_heights.size)
         idx = sizelist.index(max(sizelist))
-        mid_heights = heights[np.logical_and(heights>=heights.min()+step*idx, heights<heights.min()+step*(idx+1)+0.001)]
+        mid_heights1 = heights[np.logical_and(heights>=heights.min()+step*idx, heights<heights.min()+step*(idx+1)+0.001)]
         sizelist[idx] = 0
         idx = sizelist.index(max(sizelist))
         mid_heights2 = heights[np.logical_and(heights>=heights.min()+step*idx, heights<heights.min()+step*(idx+1)+0.001)]
-        mid_heights = np.append(mid_heights,mid_heights2)
+        sizelist[idx] = 0
+        idx = sizelist.index(max(sizelist))
+        mid_heights3 = heights[np.logical_and(heights>=heights.min()+step*idx, heights<heights.min()+step*(idx+1)+0.001)]
+        mid_heights = np.append(np.append(mid_heights1,mid_heights2), mid_heights3)
 
         # highthres = heights.max() - diff * 0.2
         # lowthres = heights.min() + diff * 0.2
         # mid_heights = heights[np.logical_and(heights>lowthres, heights<highthres)]
-        mean_hei = mid_heights.mean()
-        print('======> ratio: ', target_height/mean_hei)
+        mean_height = mid_heights.mean()
+        print('======> ratio: ', target_height/mean_height)
 
-        img = cv2.resize(img, (round(img.shape[1]*target_height/mean_hei),
-                    round(img.shape[0]*target_height/mean_hei)), interpolation=cv2.INTER_CUBIC)
+        img = cv2.resize(img, (round(img.shape[1]*target_height/mean_height),
+                    round(img.shape[0]*target_height/mean_height)), interpolation=cv2.INTER_CUBIC)
 
         if img.ndim == 2:
             img = img[:, :, np.newaxis]
@@ -615,7 +631,7 @@ class Translator(object):
         src, src_lengths = batch.src if isinstance(batch.src, tuple) \
                            else (batch.src, None)
 
-        target_height = 13 #TODO:need to be adjusted
+        target_height = 11
         if self.use_preprocess:
             src = self.auto_resize(src, target_height)
         enc_states, memory_bank, src_lengths = self.model.encoder(
