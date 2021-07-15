@@ -557,7 +557,7 @@ class Translator(object):
 
     def auto_resize(self, img, target_height):
         imgori = img.clone()
-        img = img.numpy().transpose(0,2,3,1)
+        img = img.cpu().numpy().transpose(0,2,3,1)
         img = img * 255
         img = img.round().astype(np.uint8).squeeze()
 
@@ -625,6 +625,8 @@ class Translator(object):
             img = img[:, :, np.newaxis]
         img = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255
         img = img.unsqueeze(0)
+        if self._use_cuda:
+            img = img.cuda(device=self._dev)
         return img
 
     def _run_encoder(self, batch):
